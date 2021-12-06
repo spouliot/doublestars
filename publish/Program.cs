@@ -19,14 +19,25 @@ static class Program {
 
 	static WdsCatalog wds;
 
-	static void Main (string[] args)
+	static int Main (string csvPath = ".", string wdsCatalogPath = ".")
 	{
-		// read wcs catalogue
-		wds = new WdsCatalog ("wdsweb_summ2.txt");
+		const string wds_file = "wdsweb_summ2.txt";
+		var wds_full_path = Path.Combine (wdsCatalogPath, "wdsweb_summ2.txt");
+		if (!File.Exists (wds_full_path)) {
+			Console.WriteLine ($"WDS catalogue (wds_file) not found inside '{wdsCatalogPath}'.");
+			return 1;
+		}
 
-		var csv = "/home/poupou/skygems/4839-4916/pipelineout/";
-		foreach (var file in Directory.EnumerateFiles (csv, "*.csv"))
+		if (!Directory.Exists (csvPath)) {
+			Console.WriteLine ($"Directory '{csvPath}' not found.");
+			return 2;
+		}
+
+		wds = new WdsCatalog (wds_full_path);
+		foreach (var file in Directory.EnumerateFiles (csvPath, "*.csv"))
 			ProcessCsv (file);
+
+		return 0;
 	}
 
 	static (double avg, double sd, double sem) Compute (List<double> values, int decimals)
