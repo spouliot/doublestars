@@ -7,6 +7,9 @@ using System.Text;
 
 using CliWrap;
 
+// using xml doc only to create the DragonFruit command line options descriptions
+#pragma warning disable 1591
+
 static class Program {
 	// "index" command
 	// doublestars.md
@@ -18,13 +21,18 @@ static class Program {
 	//		20211102.md
 
 	static WdsCatalog wds;
+	const string wds_file = "wdsweb_summ2.txt";
 
+	/// <summary>
+	/// Publish markdown and png thumbnails based on the CSV files.
+	/// </summary>
+	/// <param name="csvPath">Path to the CSV files to process.</param>
+	/// <param name="wdsCatalogPath">Path to the 'wdsweb_summ2.txt' catalog file.</param>
 	static int Main (string csvPath = ".", string wdsCatalogPath = ".")
 	{
-		const string wds_file = "wdsweb_summ2.txt";
-		var wds_full_path = Path.Combine (wdsCatalogPath, "wdsweb_summ2.txt");
+		var wds_full_path = Path.Combine (wdsCatalogPath, wds_file);
 		if (!File.Exists (wds_full_path)) {
-			Console.WriteLine ($"WDS catalogue (wds_file) not found inside '{wdsCatalogPath}'.");
+			Console.WriteLine ($"WDS catalogue (${wds_file}) not found inside '{wdsCatalogPath}'.");
 			return 1;
 		}
 
