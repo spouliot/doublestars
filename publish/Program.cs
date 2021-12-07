@@ -6,6 +6,7 @@ using System.Net;
 using System.Text;
 
 using CliWrap;
+using Spectre.Console;
 
 // using xml doc only to create the DragonFruit command line options descriptions
 #pragma warning disable 1591
@@ -32,18 +33,31 @@ static class Program {
 	{
 		var wds_full_path = Path.Combine (wdsCatalogPath, wds_file);
 		if (!File.Exists (wds_full_path)) {
-			Console.WriteLine ($"WDS catalogue (${wds_file}) not found inside '{wdsCatalogPath}'.");
+			AnsiConsole.WriteLine ($"WDS catalogue '{wds_file}' not found inside '{wdsCatalogPath}'.", Color.Red);
 			return 1;
 		}
 
 		if (!Directory.Exists (csvPath)) {
-			Console.WriteLine ($"Directory '{csvPath}' not found.");
+			AnsiConsole.WriteLine ($"Directory '{csvPath}' not found.", Color.Red);
 			return 2;
 		}
 
-		wds = new WdsCatalog (wds_full_path);
-		foreach (var file in Directory.EnumerateFiles (csvPath, "*.csv"))
-			ProcessCsv (file);
+		try {
+			wds = new WdsCatalog (wds_full_path);
+		} catch (Exception ex) {
+			AnsiConsole.Write ("Error loading WDS catalogue: ", Color.Red);
+			AnsiConsole.WriteException (ex);
+			return 3;
+		}
+
+		try {
+			foreach (var file in Directory.EnumerateFiles (csvPath, "*.csv"))
+				ProcessCsv (file);
+		} catch (Exception ex) {
+			AnsiConsole.Write ("Error processing CSV file: ", Color.Red);
+			AnsiConsole.WriteException (ex);
+			return 4;
+		}
 
 		return 0;
 	}
