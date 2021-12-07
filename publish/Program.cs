@@ -26,7 +26,8 @@ static class Program {
 	/// </summary>
 	/// <param name="csvPath">Path to the CSV files to process.</param>
 	/// <param name="wdsCatalogPath">Path to the 'wdsweb_summ2.txt' catalog file.</param>
-	static int Main (string csvPath = ".", string wdsCatalogPath = ".")
+	/// <param name="outputPath">Path to the output directory. It will be created if needed.</param>
+	static int Main (string csvPath = ".", string wdsCatalogPath = ".", string outputPath = ".")
 	{
 		var wds_full_path = Path.Combine (wdsCatalogPath, wds_file);
 		if (!File.Exists (wds_full_path)) {
@@ -39,21 +40,31 @@ static class Program {
 			return 2;
 		}
 
+		if (!Directory.Exists (outputPath)) {
+			try {
+				Directory.CreateDirectory (outputPath);
+			} catch (Exception ex) {
+				AnsiConsole.MarkupLine ($"[bold red]Error:[/] Could not create directory '{outputPath}': ");
+				AnsiConsole.WriteException (ex);
+				return 3;
+			}
+		}
+
 		try {
 			wds = new WdsCatalog (wds_full_path);
 		} catch (Exception ex) {
 			AnsiConsole.Markup ("[bold red]Error:[/] loading WDS catalog: ");
 			AnsiConsole.WriteException (ex);
-			return 3;
+			return 4;
 		}
 
 		try {
 			foreach (var file in Directory.EnumerateFiles (csvPath, "*.csv"))
-				ProcessCsv (file);
+				ProcessCsv (file, outputPath);
 		} catch (Exception ex) {
 			AnsiConsole.Markup ("[bold red]Error:[/] processing CSV file: ");
 			AnsiConsole.WriteException (ex);
-			return 4;
+			return 5;
 		}
 
 		return 0;
@@ -103,7 +114,7 @@ static class Program {
 		return date.ToOADate () + 2415018.5;
 	}
 
-	static void ProcessCsv (string csv)
+	static void ProcessCsv (string csv, string outputPath)
 	{
 		var lines = File.ReadLines (csv);
 		var name = Path.GetFileNameWithoutExtension (csv);
@@ -153,7 +164,7 @@ static class Program {
 				GetFitsHeaders (infile, fits_headers);
 			// generate the thumbnail for the first image only, pos `0` is for the header (not data)
 			if (pos == 1) {
-				var outfile = Path.Combine (dir, Path.ChangeExtension (name, "png"));
+				var outfile = Path.Combine (outputPath, Path.ChangeExtension (name, "png"));
 				var x1 = (int) double.Parse (values [col_x1fits]);
 				var y1 = (int) double.Parse (values [col_y1fits]);
 				var ds9 = Cli.Wrap ("ds9").WithArguments ($"\"{infile}\" -crop {x1} {y1} {thumbnails_width} {thumbnails_height} -export png \"{outfile}\" -exit").ExecuteAsync ().ConfigureAwait (false).GetAwaiter ().GetResult ();
@@ -256,6 +267,7 @@ static class Program {
 		md.AppendLine ($"| Standard Deviations | {pos_sd:F3}° | {arc_sd:F3}″ |");
 		md.AppendLine ($"| Standard Error of the Means | {pos_sem:F3} | {arc_sem:F3} |");
 
-		File.WriteAllText (name + ".md", md.ToString ());
+		var fname = Path.Combine (outputPath, name + ".md");
+		File.WriteAllText (fname, md.ToString ());
 	}
 }
