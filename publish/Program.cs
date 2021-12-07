@@ -8,9 +8,6 @@ using System.Text;
 using CliWrap;
 using Spectre.Console;
 
-// using xml doc only to create the DragonFruit command line options descriptions
-#pragma warning disable 1591
-
 static class Program {
 	// "index" command
 	// doublestars.md
