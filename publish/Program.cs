@@ -33,19 +33,19 @@ static class Program {
 	{
 		var wds_full_path = Path.Combine (wdsCatalogPath, wds_file);
 		if (!File.Exists (wds_full_path)) {
-			AnsiConsole.WriteLine ($"WDS catalogue '{wds_file}' not found inside '{wdsCatalogPath}'.", Color.Red);
+			AnsiConsole.MarkupLine ($"[bold red]Error:[/] WDS catalogue '{wds_file}' [underline]not found[/] inside '{wdsCatalogPath}'.");
 			return 1;
 		}
 
 		if (!Directory.Exists (csvPath)) {
-			AnsiConsole.WriteLine ($"Directory '{csvPath}' not found.", Color.Red);
+			AnsiConsole.MarkupLine ($"[bold red]Error:[/] Directory '{csvPath}' [underline]not found[/].");
 			return 2;
 		}
 
 		try {
 			wds = new WdsCatalog (wds_full_path);
 		} catch (Exception ex) {
-			AnsiConsole.Write ("Error loading WDS catalogue: ", Color.Red);
+			AnsiConsole.Markup ("[bold red]Error:[/] loading WDS catalog: ");
 			AnsiConsole.WriteException (ex);
 			return 3;
 		}
@@ -54,7 +54,7 @@ static class Program {
 			foreach (var file in Directory.EnumerateFiles (csvPath, "*.csv"))
 				ProcessCsv (file);
 		} catch (Exception ex) {
-			AnsiConsole.Write ("Error processing CSV file: ", Color.Red);
+			AnsiConsole.Markup ("[bold red]Error:[/] processing CSV file: ");
 			AnsiConsole.WriteException (ex);
 			return 4;
 		}
