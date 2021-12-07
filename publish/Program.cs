@@ -189,8 +189,13 @@ static class Program {
 		var mid_j2000 = 2000 + (mid_jd - 2451545.0d) / 365.25d;
 
 		var entry = wds.FindByDiscovererId (name);
-		if (entry is null)
+		if (entry is null) {
+			AnsiConsole.WriteLine ($"Could not find id '{name}' inside the catalog. Entry will be ignored.");
+#if DEBUG
 			entry = wds.FindByDiscovererId (name);
+#endif
+			return;
+		}
 
 		(var arc_avg, var arc_sd, var arc_sem) = Compute (arclen, 3);
 		(var pos_avg, var pos_sd, var pos_sem) = Compute (posang, 3);
