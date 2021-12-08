@@ -19,15 +19,18 @@ static class Program {
 	//		20211102.md
 
 	static WdsCatalog wds;
+	static string ds9executable = "ds9";
 	const string wds_file = "wdsweb_summ2.txt";
+	const int ExecutionError = 5;
 
 	/// <summary>
 	/// Publish markdown and png thumbnails based on the CSV files.
 	/// </summary>
 	/// <param name="csvPath">Path to the CSV files to process.</param>
 	/// <param name="wdsCatalogPath">Path to the 'wdsweb_summ2.txt' catalog file.</param>
+	/// <param name="ds9">SAO DS9 executable to use, default to `ds9` on PATH.</param>
 	/// <param name="outputPath">Path to the output directory. It will be created if needed.</param>
-	static int Main (string csvPath = ".", string wdsCatalogPath = ".", string outputPath = ".")
+	static int Main (string csvPath = ".", string wdsCatalogPath = ".", string ds9 = null, string outputPath = ".")
 	{
 		var wds_full_path = Path.Combine (wdsCatalogPath, wds_file);
 		if (!File.Exists (wds_full_path)) {
@@ -50,12 +53,20 @@ static class Program {
 			}
 		}
 
+		if (ds9 is not null) {
+			if (!File.Exists (ds9)) {
+				AnsiConsole.MarkupLine ($"[bold red]Error:[/] DS9 executable '{ds9}' [underline]not found[/].");
+				return 4;
+			}
+			ds9executable = ds9;
+		}
+
 		try {
 			wds = new WdsCatalog (wds_full_path);
 		} catch (Exception ex) {
 			AnsiConsole.Markup ("[bold red]Error:[/] loading WDS catalog: ");
 			AnsiConsole.WriteException (ex);
-			return 4;
+			return ExecutionError;
 		}
 
 		try {
@@ -64,7 +75,7 @@ static class Program {
 		} catch (Exception ex) {
 			AnsiConsole.Markup ("[bold red]Error:[/] processing CSV file: ");
 			AnsiConsole.WriteException (ex);
-			return 5;
+			return ExecutionError + 1;
 		}
 
 		return 0;
@@ -165,11 +176,11 @@ static class Program {
 				GetFitsHeaders (infile, fits_headers);
 			// generate the thumbnail for the first image only, pos `0` is for the header (not data)
 			if (pos == 1) {
-				var outfile = Path.Combine (outputPath, Path.ChangeExtension (name, "png"));
+				var outfile = Path.GetFullPath (Path.Combine (outputPath, Path.ChangeExtension (name, "png")));
 				var x1 = (int) double.Parse (values [col_x1fits]);
 				var y1 = (int) double.Parse (values [col_y1fits]);
 				// "-align yes" is not exported to PNG
-				var ds9 = Cli.Wrap ("ds9").WithArguments ($"\"{infile}\" -crop {x1} {y1} {thumbnails_width * 2} {thumbnails_height * 2} -export png \"{outfile}\" -exit").ExecuteAsync ().ConfigureAwait (false).GetAwaiter ().GetResult ();
+				var ds9 = Cli.Wrap (ds9executable).WithArguments ($"\"{infile}\" -crop {x1} {y1} {thumbnails_width * 2} {thumbnails_height * 2} -export png \"{outfile}\" -exit").ExecuteAsync ().ConfigureAwait (false).GetAwaiter ().GetResult ();
 				if (ds9.ExitCode != 0) {
 					AnsiConsole.Markup ("[bold red]Error:[/] generating thumbnail for ");
 					AnsiConsole.WriteLine (infile);
