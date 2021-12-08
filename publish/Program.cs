@@ -141,7 +141,8 @@ static class Program {
 			{ "EXPTIME", null },
 			{ "XPIXSZ", null },
 			{ "YPIXSZ", null },
-			{ "FOCALLEN", null} ,
+			{ "FOCALLEN", null } ,
+			{ "PA", null },
 		};
 		// thumbnails TODO move to options
 		var thumbnails_width = 128;
@@ -167,8 +168,28 @@ static class Program {
 				var outfile = Path.Combine (outputPath, Path.ChangeExtension (name, "png"));
 				var x1 = (int) double.Parse (values [col_x1fits]);
 				var y1 = (int) double.Parse (values [col_y1fits]);
-				var ds9 = Cli.Wrap ("ds9").WithArguments ($"\"{infile}\" -crop {x1} {y1} {thumbnails_width} {thumbnails_height} -export png \"{outfile}\" -exit").ExecuteAsync ().ConfigureAwait (false).GetAwaiter ().GetResult ();
-				Cli.Wrap ("convert").WithArguments ($"-flip \"{outfile}\" \"{outfile}\"").ExecuteAsync ().ConfigureAwait (false).GetAwaiter ().GetResult ();
+				// "-align yes" is not exported to PNG
+				var ds9 = Cli.Wrap ("ds9").WithArguments ($"\"{infile}\" -crop {x1} {y1} {thumbnails_width * 2} {thumbnails_height * 2} -export png \"{outfile}\" -exit").ExecuteAsync ().ConfigureAwait (false).GetAwaiter ().GetResult ();
+				if (ds9.ExitCode != 0) {
+					AnsiConsole.Markup ("[bold red]Error:[/] generating thumbnail for ");
+					AnsiConsole.WriteLine (infile);
+				} else {
+					var arguments = new StringBuilder ();
+					arguments.Append ('"').Append (outfile).Append ("\" -gravity center -flip");
+					var pa = 360.0d;
+					var fh_pa = fits_headers ["PA"];
+					if (fh_pa is null) {
+						// TODO warn about missing PA header and say 360 is assumed
+					} else {
+						pa = double.Parse (fh_pa);
+					}
+					// Check if we need to do rotation since the image might not be aligned to WCS coordinates
+					if (360.0d - pa > 1.0d) {
+						arguments.Append (" -rotate ").Append (360.0d - pa);
+					}
+					arguments.Append (" +repage -crop 128x128+0+0 +repage \"").Append (outfile).Append ('"');
+					Cli.Wrap ("convert").WithArguments (arguments.ToString ()).ExecuteAsync ().ConfigureAwait (false).GetAwaiter ().GetResult ();
+				}
 				exposure = double.Parse (fits_headers ["EXPTIME"]);
 				if (DateTime.TryParseExact (fits_headers ["DATE-OBS"], @"\'yyyy-MM-dd\THH:mm:ss.ff\'", null, System.Globalization.DateTimeStyles.AssumeUniversal, out var date_obs)) {
 					min_date_obs = max_date_obs = date_obs.ToUniversalTime ();
