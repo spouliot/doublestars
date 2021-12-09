@@ -5,7 +5,7 @@ using System.Linq;
 using System.Net;
 using System.Text;
 
-using CliWrap;
+using NetVips;
 using Spectre.Console;
 
 static class Program {
@@ -19,18 +19,16 @@ static class Program {
 	//		20211102.md
 
 	static WdsCatalog wds;
-	static string ds9executable = "ds9";
 	const string wds_file = "wdsweb_summ2.txt";
-	const int ExecutionError = 5;
+	const int ExecutionError = 4;
 
 	/// <summary>
 	/// Publish markdown and png thumbnails based on the CSV files.
 	/// </summary>
 	/// <param name="csvPath">Path to the CSV files to process.</param>
 	/// <param name="wdsCatalogPath">Path to the 'wdsweb_summ2.txt' catalog file.</param>
-	/// <param name="ds9">SAO DS9 executable to use, default to `ds9` on PATH.</param>
 	/// <param name="outputPath">Path to the output directory. It will be created if needed.</param>
-	static int Main (string csvPath = ".", string wdsCatalogPath = ".", string ds9 = null, string outputPath = ".")
+	static int Main (string csvPath = ".", string wdsCatalogPath = ".", string outputPath = ".")
 	{
 		var wds_full_path = Path.Combine (wdsCatalogPath, wds_file);
 		if (!File.Exists (wds_full_path)) {
@@ -51,14 +49,6 @@ static class Program {
 				AnsiConsole.WriteException (ex);
 				return 3;
 			}
-		}
-
-		if (ds9 is not null) {
-			if (!File.Exists (ds9)) {
-				AnsiConsole.MarkupLine ($"[bold red]Error:[/] DS9 executable '{ds9}' [underline]not found[/].");
-				return 4;
-			}
-			ds9executable = ds9;
 		}
 
 		try {
@@ -154,6 +144,7 @@ static class Program {
 			{ "YPIXSZ", null },
 			{ "FOCALLEN", null } ,
 			{ "PA", null },
+			{ "NAXIS2", null },
 		};
 		// thumbnails TODO move to options
 		var thumbnails_width = 128;
@@ -179,28 +170,25 @@ static class Program {
 				var outfile = Path.GetFullPath (Path.Combine (outputPath, Path.ChangeExtension (name, "png")));
 				var x1 = (int) double.Parse (values [col_x1fits]);
 				var y1 = (int) double.Parse (values [col_y1fits]);
-				// "-align yes" is not exported to PNG
-				var ds9 = Cli.Wrap (ds9executable).WithArguments ($"\"{infile}\" -crop {x1} {y1} {thumbnails_width * 2} {thumbnails_height * 2} -export png \"{outfile}\" -exit").ExecuteAsync ().ConfigureAwait (false).GetAwaiter ().GetResult ();
-				if (ds9.ExitCode != 0) {
-					AnsiConsole.Markup ("[bold red]Error:[/] generating thumbnail for ");
-					AnsiConsole.WriteLine (infile);
+				var fits_rows = Int32.Parse (fits_headers ["NAXIS2"]);
+				using var im = Image.NewFromFile (infile);
+				// double the crop area so we can rotate the image and crop (again) to the requested size
+				using var crop = im.Crop (x1 - thumbnails_width, fits_rows - y1 - thumbnails_height, thumbnails_width * 2, thumbnails_height * 2);
+				crop.WriteToFile (outfile);
+				var pa = 360.0d;
+				var fh_pa = fits_headers ["PA"];
+				if (fh_pa is null) {
+					// TODO warn about missing PA header and say 360 is assumed
 				} else {
-					var arguments = new StringBuilder ();
-					arguments.Append ('"').Append (outfile).Append ("\" -gravity center -flip");
-					var pa = 360.0d;
-					var fh_pa = fits_headers ["PA"];
-					if (fh_pa is null) {
-						// TODO warn about missing PA header and say 360 is assumed
-					} else {
-						pa = double.Parse (fh_pa);
-					}
-					// Check if we need to do rotation since the image might not be aligned to WCS coordinates
-					if (360.0d - pa > 1.0d) {
-						arguments.Append (" -rotate ").Append (360.0d - pa);
-					}
-					arguments.Append (" +repage -crop 128x128+0+0 +repage \"").Append (outfile).Append ('"');
-					Cli.Wrap ("convert").WithArguments (arguments.ToString ()).ExecuteAsync ().ConfigureAwait (false).GetAwaiter ().GetResult ();
+					pa = double.Parse (fh_pa);
 				}
+				using var flip = crop.FlipVer ();
+				flip.WriteToFile (outfile);
+				using var rotate = (360.0d - pa > 1.0d) ? flip.Rotate (360.0d - pa) : flip;
+				rotate.WriteToFile (outfile);
+				using var crop2 = rotate.Crop ((rotate.Width - thumbnails_width) / 2, (rotate.Height - thumbnails_height) / 2, thumbnails_width, thumbnails_height);
+				crop2.WriteToFile (outfile);
+
 				exposure = double.Parse (fits_headers ["EXPTIME"]);
 				if (DateTime.TryParseExact (fits_headers ["DATE-OBS"], @"\'yyyy-MM-dd\THH:mm:ss.ff\'", null, System.Globalization.DateTimeStyles.AssumeUniversal, out var date_obs)) {
 					min_date_obs = max_date_obs = date_obs.ToUniversalTime ();
