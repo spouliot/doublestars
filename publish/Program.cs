@@ -174,7 +174,6 @@ static class Program {
 				using var im = Image.NewFromFile (infile);
 				// double the crop area so we can rotate the image and crop (again) to the requested size
 				using var crop = im.Crop (x1 - thumbnails_width, fits_rows - y1 - thumbnails_height, thumbnails_width * 2, thumbnails_height * 2);
-				crop.WriteToFile (outfile);
 				var pa = 360.0d;
 				var fh_pa = fits_headers ["PA"];
 				if (fh_pa is null) {
@@ -183,9 +182,7 @@ static class Program {
 					pa = double.Parse (fh_pa);
 				}
 				using var flip = crop.FlipVer ();
-				flip.WriteToFile (outfile);
 				using var rotate = (360.0d - pa > 1.0d) ? flip.Rotate (360.0d - pa) : flip;
-				rotate.WriteToFile (outfile);
 				using var crop2 = rotate.Crop ((rotate.Width - thumbnails_width) / 2, (rotate.Height - thumbnails_height) / 2, thumbnails_width, thumbnails_height);
 				crop2.WriteToFile (outfile);
 
