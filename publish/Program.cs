@@ -167,7 +167,7 @@ static class Program {
 				GetFitsHeaders (infile, fits_headers);
 			// generate the thumbnail for the first image only, pos `0` is for the header (not data)
 			if (pos == 1) {
-				var outfile = Path.GetFullPath (Path.Combine (outputPath, Path.ChangeExtension (name, "png")));
+				var outfile = Path.GetFullPath (Path.Combine (outputPath, Path.ChangeExtension (name, "webp")));
 				var x1 = (int) double.Parse (values [col_x1fits]);
 				var y1 = (int) double.Parse (values [col_y1fits]);
 				var fits_rows = Int32.Parse (fits_headers ["NAXIS2"]);
@@ -231,7 +231,7 @@ static class Program {
 		md.AppendLine ();
 		md.AppendLine ("## Thumbnail");
 		md.AppendLine ();
-		md.AppendLine ($"![thumbnail]({name}.png)");
+		md.AppendLine ($"![thumbnail]({name}.webp)");
 		md.AppendLine ();
 		var w = thumbnails_width * (xpixsize / focal_length) * 206.265d;
 		var h = thumbnails_height * (ypixsize / focal_length) * 206.265d;
