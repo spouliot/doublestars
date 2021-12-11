@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -7,18 +8,11 @@ using System.Text;
 
 using NetVips;
 using Spectre.Console;
+using Wds;
 
 static class Program {
-	// "index" command
-	// doublestars.md
-	//	by stars
-	//		pou825.md (if more than one exists)
-	//			image and link to measurements
-	//			pou825-2021102.[png|md]
-	//	by dates
-	//		20211102.md
 
-	static WdsCatalog wds;
+	static WdsCatalog? wds;
 	const string wds_file = "wdsweb_summ2.txt";
 	const int ExecutionError = 4;
 
@@ -83,7 +77,7 @@ static class Program {
 			Math.Round (sem, decimals, MidpointRounding.AwayFromZero));
 	}
 
-	static void GetFitsHeaders (string file, Dictionary<string,string> headers)
+	static void GetFitsHeaders (string file, Dictionary<string,string?> headers)
 	{
 		// ensure previous results, if any, are removed
 		foreach (var entry in headers.Keys) {
@@ -115,7 +109,6 @@ static class Program {
 		return date.ToOADate () + 2415018.5;
 	}
 
-
 	static Image Linear (this Image self, double a, double b)
 	{
 		// Existing API forces the use of arrays and create a non-required VOption instance
@@ -144,6 +137,24 @@ static class Program {
 		return add.Log ();
 	}
 
+	// the header format is not always identical
+	static bool TryParse (string? s, out DateTime d)
+	{
+		switch (s?.Length) {
+		case 25:
+			return DateTime.TryParseExact (s, @"\'yyyy-MM-dd\THH:mm:ss.fff\'", null, DateTimeStyles.AssumeUniversal, out d);
+		case 24:
+			return DateTime.TryParseExact (s, @"\'yyyy-MM-dd\THH:mm:ss.ff\'", null, DateTimeStyles.AssumeUniversal, out d);
+		case 23:
+			return DateTime.TryParseExact (s, @"\'yyyy-MM-dd\THH:mm:ss.f\'", null, DateTimeStyles.AssumeUniversal, out d);
+		case 21:
+			return DateTime.TryParseExact (s, @"\'yyyy-MM-dd\THH:mm:ss\'", null, DateTimeStyles.AssumeUniversal, out d);
+		default:
+			d = DateTime.MinValue;
+			return false;
+		}
+	}
+
 	static void ProcessCsv (string csv, string outputPath)
 	{
 		var lines = File.ReadLines (csv);
@@ -166,7 +177,7 @@ static class Program {
 		var xpixsize = double.MinValue;
 		var ypixsize = double.MinValue;
 		var focal_length = double.MinValue;
-		var fits_headers = new Dictionary<string,string> () {
+		var fits_headers = new Dictionary<string,string?> () {
 			{ "DATE-OBS", null },
 			{ "EXPTIME", null },
 			{ "XPIXSZ", null },
@@ -191,7 +202,8 @@ static class Program {
 				arclen.Add (double.Parse (values [col_arclen]));
 				posang.Add (double.Parse (values [col_posang]));
 			}
-			var infile = Path.Combine (Path.GetDirectoryName (csv), values [col_label]);
+			var cvs_dir = Path.GetDirectoryName (csv);
+			var infile = Path.Combine (cvs_dir ?? ".", values [col_label]);
 				GetFitsHeaders (infile, fits_headers);
 			// generate the thumbnail for the first image only, pos `0` is for the header (not data)
 			if (pos == 1) {
@@ -204,6 +216,7 @@ static class Program {
 				var pa = 360.0d;
 				var fh_pa = fits_headers ["PA"];
 				if (fh_pa is null) {
+					AnsiConsole.WriteLine ($"Could not find 'PA' inside the headers of '{infile}'. A value of `360` will be assumed to create the thumbnail.");
 					// TODO warn about missing PA header and say 360 is assumed
 				} else {
 					pa = double.Parse (fh_pa);
@@ -224,23 +237,47 @@ static class Program {
 				var cast = scaled.Cast (Enums.BandFormat.Uchar);
 				cast.WriteToFile (outfile);
 
-				exposure = double.Parse (fits_headers ["EXPTIME"]);
-				if (DateTime.TryParseExact (fits_headers ["DATE-OBS"], @"\'yyyy-MM-dd\THH:mm:ss.ff\'", null, System.Globalization.DateTimeStyles.AssumeUniversal, out var date_obs)) {
-					min_date_obs = max_date_obs = date_obs.ToUniversalTime ();
+				if (!double.TryParse (fits_headers ["EXPTIME"], out exposure)) {
+					AnsiConsole.WriteLine ($"Could not find 'EXPTIME' inside the headers of '{infile}'. Entry will be ignored.");
+					continue;
 				}
-				xpixsize = double.Parse (fits_headers ["XPIXSZ"]);
-				ypixsize = double.Parse (fits_headers ["YPIXSZ"]);
-				focal_length = double.Parse (fits_headers ["FOCALLEN"]);
+
+				if (TryParse (fits_headers ["DATE-OBS"], out var date_obs)) {
+					min_date_obs = max_date_obs = date_obs.ToUniversalTime ();
+				} else {
+					AnsiConsole.WriteLine ($"Could not find 'DATE-OBS' inside the headers of '{infile}'. Entry will be ignored.");
+					continue;
+				}
+
+				if (!double.TryParse (fits_headers ["XPIXSZ"], out xpixsize)) {
+					AnsiConsole.WriteLine ($"Could not find 'XPIXSZ' inside the headers of '{infile}'. Entry will be ignored.");
+					continue;
+				}
+
+				if (!double.TryParse (fits_headers ["YPIXSZ"], out ypixsize)) {
+					AnsiConsole.WriteLine ($"Could not find 'YPIXSZ' inside the headers of '{infile}'. Entry will be ignored.");
+					continue;
+				}
+
+				if (!double.TryParse (fits_headers ["FOCALLEN"], out focal_length)) {
+					AnsiConsole.WriteLine ($"Could not find 'FOCALLEN' inside the headers of '{infile}'. Entry will be ignored.");
+					continue;
+				}
 			} else {
-				var exp = double.Parse (fits_headers ["EXPTIME"]);
-				if (exposure != exp)
-					throw new Exception ($"Exposure time mismatch: {exposure} != {exp}");
-				if (DateTime.TryParseExact (fits_headers ["DATE-OBS"], @"\'yyyy-MM-dd\THH:mm:ss.fff\'", null, System.Globalization.DateTimeStyles.AssumeUniversal, out var date_obs)) {
+				if (!double.TryParse (fits_headers ["EXPTIME"], out var exp)) {
+					AnsiConsole.WriteLine ($"Could not find 'EXPTIME' inside the headers of '{infile}'. Entry will be ignored.");
+					continue;
+				}
+
+				if (TryParse (fits_headers ["DATE-OBS"], out var date_obs)) {
 					date_obs = date_obs.ToUniversalTime ();
 					if (date_obs < min_date_obs)
 						min_date_obs = date_obs;
 					if (date_obs > max_date_obs)
 						max_date_obs = date_obs;
+				} else {
+					AnsiConsole.WriteLine ($"Could not find 'DATE-OBS' inside the headers of '{infile}'. Entry will be ignored.");
+					continue;
 				}
 			}
 			pos++;
@@ -251,11 +288,11 @@ static class Program {
 		var mid_jd = mid_date_obs.ToJulianDate ();
 		var mid_j2000 = 2000 + (mid_jd - 2451545.0d) / 365.25d;
 
-		var entry = wds.FindByDiscovererId (name);
+		var entry = wds?.FindByDiscovererId (name);
 		if (entry is null) {
 			AnsiConsole.WriteLine ($"Could not find id '{name}' inside the catalog. Entry will be ignored.");
 #if DEBUG
-			entry = wds.FindByDiscovererId (name);
+			entry = wds?.FindByDiscovererId (name);
 #endif
 			return;
 		}

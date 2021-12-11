@@ -1,18 +1,18 @@
 using System;
 using System.IO;
-using System.Linq;
 using System.Text;
 
-public class WdsCatalog {
+namespace Wds;
 
-	string[] wds;
+public class WdsCatalog {
+	readonly string[] wds;
 
 	public WdsCatalog (string catalog)
 	{
 		wds = File.ReadAllLines (catalog);
 	}
 
-	public WdsEntry FindByDiscovererId (string id)
+	public WdsEntry? FindByDiscovererId (string id)
 	{
 		var key = new StringBuilder (12);
 		// discover is one to three characters
