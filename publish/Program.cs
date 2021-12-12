@@ -178,10 +178,6 @@ static class Program {
 				GetFitsHeaders (infile, fits_headers);
 			// generate the thumbnail for the first image only, pos `0` is for the header (not data)
 			if (pos == 1) {
-				var outfile = Path.GetFullPath (Path.Combine (outputPath, Path.ChangeExtension (name, "webp")));
-				var x1 = (int) double.Parse (values [col_x1fits]);
-				var y1 = (int) double.Parse (values [col_y1fits]);
-
 				var pa = 360.0d;
 				var fh_pa = fits_headers ["PA"];
 				if (fh_pa is null) {
@@ -189,17 +185,21 @@ static class Program {
 				} else {
 					pa = double.Parse (fh_pa);
 				}
-				ThumbnailGenerator.Generate (infile, x1, y1, pa, outfile);
-
-				if (!double.TryParse (fits_headers ["EXPTIME"], out exposure)) {
-					AnsiConsole.WriteLine ($"Could not find 'EXPTIME' inside the headers of '{infile}'. Entry will be ignored.");
-					continue;
-				}
 
 				if (TryParse (fits_headers ["DATE-OBS"], out var date_obs)) {
 					min_date_obs = max_date_obs = date_obs.ToUniversalTime ();
 				} else {
 					AnsiConsole.WriteLine ($"Could not find 'DATE-OBS' inside the headers of '{infile}'. Entry will be ignored.");
+					continue;
+				}
+
+				var outfile = Path.GetFullPath (Path.Combine (outputPath, $"{date_obs.Year}-{name}.webp"));
+				var x1 = (int) double.Parse (values [col_x1fits]);
+				var y1 = (int) double.Parse (values [col_y1fits]);
+				ThumbnailGenerator.Generate (infile, x1, y1, pa, outfile);
+
+				if (!double.TryParse (fits_headers ["EXPTIME"], out exposure)) {
+					AnsiConsole.WriteLine ($"Could not find 'EXPTIME' inside the headers of '{infile}'. Entry will be ignored.");
 					continue;
 				}
 
@@ -254,13 +254,12 @@ static class Program {
 		(var arc_avg, var arc_sd, var arc_sem) = Compute (arclen, 3);
 		(var pos_avg, var pos_sd, var pos_sem) = Compute (posang, 3);
 
-		// ex: pou825-20211102.md
 		var md = new StringBuilder ();
 		md.Append ("# ").AppendLine (name.ToUpperInvariant ());
 		md.AppendLine ();
 		md.AppendLine ("## Thumbnail");
 		md.AppendLine ();
-		md.AppendLine ($"![thumbnail]({name}.webp)");
+		md.AppendLine ($"![thumbnail]({min_date_obs.Year}-{name}.webp)");
 		md.AppendLine ();
 		var w = thumbnails_width * (xpixsize / focal_length) * 206.265d;
 		var h = thumbnails_height * (ypixsize / focal_length) * 206.265d;
@@ -291,7 +290,6 @@ static class Program {
 		md.AppendLine ( "|                    | Primary | Secondary |");
 		md.AppendLine ( "|--------------------|:-------:|:---------:|");
 		md.AppendLine ($"| Magnitude          | {entry.MagnitudePrimary}  | {entry.MagnitudeSecondary} |");
-		md.AppendLine ($"| Spectral Type      | {entry.SpectralType} |");
 		md.AppendLine ($"| Proper Motion RA   | {entry.PrimaryProperMotionRA}″   | {entry.SecondaryProperMotionRA}″ |");
 		md.AppendLine ($"| Proper Motion Dec  | {entry.PrimaryProperMotionDec}″   | {entry.SecondaryProperMotionDec}″ |");
 		md.AppendLine ();
@@ -313,7 +311,7 @@ static class Program {
 		md.AppendLine ($"| Standard Deviations | {pos_sd:F3}° | {arc_sd:F3}″ |");
 		md.AppendLine ($"| Standard Error of the Means | {pos_sem:F3} | {arc_sem:F3} |");
 
-		var fname = Path.Combine (outputPath, name + ".md");
+		var fname = Path.Combine (outputPath, $"{min_date_obs.Year}-{name}.md");
 		File.WriteAllText (fname, md.ToString ());
 	}
 }
