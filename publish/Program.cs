@@ -6,7 +6,6 @@ using System.Linq;
 using System.Net;
 using System.Text;
 
-using NetVips;
 using Spectre.Console;
 using Wds;
 
@@ -109,34 +108,6 @@ static class Program {
 		return date.ToOADate () + 2415018.5;
 	}
 
-	static Image Linear (this Image self, double a, double b)
-	{
-		// Existing API forces the use of arrays and create a non-required VOption instance
-		// https://github.com/kleisauke/net-vips/issues/153
-		// return image.Linear (new double [] { f }, new double [] { a });
-		return (Image) Operation.Call ("linear", null, self, a, b);
-	}
-
-	static Image Linear (this Image image, double bglevel, double pklevel, double maxvalue)
-	{
-		var f = maxvalue / (pklevel - bglevel);
-		var a = -(bglevel * f);
-		return image.Linear (f, a);
-	}
-
-	// based on fits liberator code
-	static Image Asinh (this Image image, double bglevel, double pklevel, double maxvalue)
-	{
-		double f = maxvalue / (pklevel - bglevel);
-		double a = -(bglevel * f);
-		using var lfa = image.Linear (f, a);
-		using var pow2 = lfa.Pow (2.0d);
-		using var l11 = pow2.Linear (1.0d, 1.0d);
-		using var pow05 = l11.Pow (0.5d);
-		using var add = pow05.Add (lfa);
-		return add.Log ();
-	}
-
 	// the header format is not always identical
 	static bool TryParse (string? s, out DateTime d)
 	{
@@ -210,32 +181,15 @@ static class Program {
 				var outfile = Path.GetFullPath (Path.Combine (outputPath, Path.ChangeExtension (name, "webp")));
 				var x1 = (int) double.Parse (values [col_x1fits]);
 				var y1 = (int) double.Parse (values [col_y1fits]);
-				using var im = Image.NewFromFile (infile);
-				// double the crop area so we can rotate the image and crop (again) to the requested size
-				using var crop = im.Crop (x1 - thumbnails_width, im.Height - y1 - thumbnails_height, thumbnails_width * 2, thumbnails_height * 2);
+
 				var pa = 360.0d;
 				var fh_pa = fits_headers ["PA"];
 				if (fh_pa is null) {
 					AnsiConsole.WriteLine ($"Could not find 'PA' inside the headers of '{infile}'. A value of `360` will be assumed to create the thumbnail.");
-					// TODO warn about missing PA header and say 360 is assumed
 				} else {
 					pa = double.Parse (fh_pa);
 				}
-				using var flip = crop.FlipVer ();
-				using var rotate = (360.0d - pa > 1.0d) ? flip.Rotate (360.0d - pa) : flip;
-				using var crop2 = rotate.Crop ((rotate.Width - thumbnails_width) / 2, (rotate.Height - thumbnails_height) / 2, thumbnails_width, thumbnails_height);
-
-				using var stats = crop2.Stats ();
-				double min = stats[0, 0][0];
-				double max = stats[1, 0][0];
-				double scaled_peak = (max - min) > 10000 ? 10.0d : 1.0d;
-				double pklevel = (max - min) / scaled_peak;
-				//AnsiConsole.MarkupLine ($"<bold>{name}</bold> : Max {max}, Min: {min}, PeakLevel: {pklevel}");
-				double bglevel = 0.0d;
-				var im2 = crop2.Asinh (bglevel, pklevel, 10.0d);
-				using var scaled = im2.Linear (0.0d, 3.0d, 255.0d);
-				var cast = scaled.Cast (Enums.BandFormat.Uchar);
-				cast.WriteToFile (outfile);
+				ThumbnailGenerator.Generate (infile, x1, y1, pa, outfile);
 
 				if (!double.TryParse (fits_headers ["EXPTIME"], out exposure)) {
 					AnsiConsole.WriteLine ($"Could not find 'EXPTIME' inside the headers of '{infile}'. Entry will be ignored.");
