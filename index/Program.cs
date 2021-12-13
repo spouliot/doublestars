@@ -21,7 +21,7 @@ for (int year = DateTime.UtcNow.Year; year >= 2021; year--) {
 	foreach (var file in files) {
 		var name = Path.GetFileNameWithoutExtension (file);
 		thumnails.Append ("|![").Append (name [5..]).Append ("](").Append (name).Append (".webp)");
-		descriptions.Append ("|[").Append (name [5..].ToUpperInvariant ()).Append ("](").Append (name).Append (".md)");
+		descriptions.Append ("|[").Append (name [5..].ToUpperInvariant ()).Append ("](").Append (name).Append (')');
 		if (++i % columns == 0) {
 			home.Append (thumnails).Append ('|').AppendLine ();
 			home.Append (descriptions).Append ('|').AppendLine ();
