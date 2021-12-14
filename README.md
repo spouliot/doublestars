@@ -1,5 +1,6 @@
 # doublestars
-Publish double stars measurements as markdown files
+Publish double stars measurements as markdown files.
+Looks at the [wiki](https://github.com/spouliot/doublestars/wiki) for an example.
 
 ## Requirements
 

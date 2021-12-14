@@ -156,9 +156,6 @@ static class Program {
 			{ "FOCALLEN", null } ,
 			{ "PA", null },
 		};
-		// thumbnails TODO move to options
-		var thumbnails_width = 128;
-		var thumbnails_height = 128;
 		foreach (var line in lines) {
 			var values = line.Split (',');
 			if (pos == 0) {
@@ -261,9 +258,16 @@ static class Program {
 		md.AppendLine ();
 		md.AppendLine ($"![thumbnail]({min_date_obs.Year}-{name}.webp)");
 		md.AppendLine ();
-		var w = thumbnails_width * (xpixsize / focal_length) * 206.265d;
-		var h = thumbnails_height * (ypixsize / focal_length) * 206.265d;
-		md.AppendLine ($"*North is up, East is left. Image is {thumbnails_width}x{thumbnails_height} pixels or {w:F1}x{h:F1} arcseconds.*");
+		md.Append ($"*North is up, East is left. Image is {ThumbnailGenerator.Width}x{ThumbnailGenerator.Height} pixels");
+		var asw = (xpixsize / focal_length) * 206.265d;
+		var w = ThumbnailGenerator.Width * asw;
+		if ((ThumbnailGenerator.Width == ThumbnailGenerator.Height) && (xpixsize == ypixsize)) {
+			md.AppendLine ($" with {asw:F2}″/px ({w:F0}″)*");
+		} else {
+			var ash = (ypixsize / focal_length) * 206.265d;
+			var h = ThumbnailGenerator.Height * ash;
+			md.AppendLine ($" with {asw:F2}x{ash:F2}″/px ({w:F0}x{h:F0}″)*");
+		}
 		md.AppendLine ();
 		md.AppendLine ("## WDS Catalog Information");
 		md.AppendLine ();
