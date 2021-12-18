@@ -5,7 +5,7 @@ using System.Text;
 namespace Wds;
 
 public class WdsCatalog {
-	readonly string[] wds;
+	readonly string [] wds;
 
 	public WdsCatalog (string catalog)
 	{

@@ -42,7 +42,7 @@ public class WdsEntry {
 
 	internal WdsEntry (string line)
 	{
-		Identifier = line[..10];
+		Identifier = line [..10];
 		DiscovererId = line.Substring (10, 7);
 		Components = line.Substring (17, 5);
 		EpochFirst = int.Parse (line.Substring (23, 4));
